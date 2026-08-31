@@ -23,10 +23,11 @@ services:
         VITE_APP_AI_BACKEND: ${VITE_APP_AI_BACKEND:-}
         VITE_APP_LIBRARY_URL: ${VITE_APP_LIBRARY_URL:-}
         VITE_APP_LIBRARY_BACKEND: ${VITE_APP_LIBRARY_BACKEND:-}
-    environment:
-      # Coolify generates the public domain for this service and terminates TLS
-      # in its own proxy; the container itself only ever serves plain HTTP on 80.
-      - SERVICE_FQDN_EXCALIDRAW_80
+    # The public domain is assigned in Coolify's UI (General -> Domains).
+    # Deliberately no `environment:` block here: Coolify merges its own variables
+    # into it as a mapping, and a list-style block would end up with a numeric key
+    # that `docker compose` rejects. The container serves plain HTTP on 80; TLS is
+    # terminated by Coolify's proxy.
     expose:
       - "80"
     restart: unless-stopped

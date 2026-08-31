@@ -96,6 +96,15 @@ docker run --rm -p 3000:80 excalidraw-selfhosted
 
 Приложение откроется на http://localhost:3000.
 
+## Если деплой падает
+
+| Ошибка в логе | Причина |
+| --- | --- |
+| `Failed to read the Docker Compose file from the repository` | Неверный путь в **Docker Compose Location**. Нужен `/docker-compose.coolify.yml` — именно `.yml`, а не `.yaml`. После правки — **Save**, и только потом **Load Compose File**. |
+| `Failed to read Git source` при нажатии **Load/Reload Compose File** | Для публичного репозитория Coolify читает файл через GitHub API без токена, лимит — 60 запросов в час на IP. Подождать или подключить GitHub App в **Sources**. На сам деплой не влияет: он делает обычный `git clone`. |
+| `non-string key in services.<name>.environment: 0` | В `environment` сервиса список (`- KEY=value`). Coolify дописывает туда свои переменные словарём, и структуры смешиваются. Использовать форму словаря (`KEY: value`) либо не заводить блок вовсе. |
+| Сборка обрывается без внятной ошибки, часто на `vite build` | Не хватает памяти. Нужно ~4 ГБ RAM на сборочном сервере. |
+
 ## Обновление
 
 Coolify пересобирает образ на каждый деплой. Чтобы подтянуть новые версии
