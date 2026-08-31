@@ -51,6 +51,12 @@ RUN npm_config_target_arch=${TARGETARCH} yarn build:app:docker
 
 FROM nginx:stable-alpine-slim@sha256:2c605dbeab79a6b2a63340474fe58119d0ef95bdc4b1f41df0aa689659b3d13b
 
-COPY --from=build /opt/node_app/excalidraw-app/build /usr/share/nginx/html
+# `openssl passwd -apr1` hashes the basic-auth password at container start.
+RUN apk add --no-cache openssl
 
-HEALTHCHECK CMD wget -q -O /dev/null http://localhost || exit 1
+COPY --from=build /opt/node_app/excalidraw-app/build /usr/share/nginx/html
+COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx/40-basic-auth.sh /docker-entrypoint.d/40-basic-auth.sh
+
+# /healthz is served without auth on purpose -- see docker/nginx/default.conf.
+HEALTHCHECK CMD wget -q -O /dev/null http://localhost/healthz || exit 1

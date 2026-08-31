@@ -24,15 +24,21 @@ services:
         VITE_APP_LIBRARY_URL: ${VITE_APP_LIBRARY_URL:-}
         VITE_APP_LIBRARY_BACKEND: ${VITE_APP_LIBRARY_BACKEND:-}
     # The public domain is assigned in Coolify's UI (General -> Domains).
-    # Deliberately no `environment:` block here: Coolify merges its own variables
-    # into it as a mapping, and a list-style block would end up with a numeric key
-    # that `docker compose` rejects. The container serves plain HTTP on 80; TLS is
-    # terminated by Coolify's proxy.
+    # The container serves plain HTTP on 80; TLS is terminated by Coolify's proxy.
+    #
+    # Mapping form, never a list: Coolify merges its own variables into this block
+    # as a mapping, and a list would end up with a numeric key that `docker compose`
+    # rejects. Set both values in Coolify to put the site behind a login prompt;
+    # leave them unset and it stays public. These are read at container start, so
+    # changing them needs a restart, not a rebuild.
+    environment:
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-}
     expose:
       - "80"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
