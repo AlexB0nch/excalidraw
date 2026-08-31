@@ -7,9 +7,16 @@
  */
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { cpSync, existsSync, mkdtempSync, readFileSync as readFile, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { buildScene, parseMarkdown } from "./index.mjs";
+
+const HERE = fileURLToPath(new URL(".", import.meta.url));
 
 const BASE = "https://draw.example.com/";
 
@@ -139,4 +146,39 @@ test("ids survive many keys without colliding", () => {
   const s = buildScene(parseMarkdown(many.join("\n\n")), { baseUrl: BASE });
   const ids = s.elements.map((e) => e.id);
   assert.equal(new Set(ids).size, ids.length);
+});
+
+test("CLI entry point runs when its own path contains a space", () => {
+  // Regression test: `import.meta.url === \`file://${process.argv[1]}\`` used
+  // to compare a URL-escaped string (spaces as %20) against a raw path (spaces
+  // literal). The mismatch made the main() guard silently false -- exit 0, no
+  // output, no file written -- whenever the script lived under a path with a
+  // space. Reproduce that exact shape: copy the script into a spaced dir and
+  // invoke it as a real subprocess, the only way to exercise import.meta.url.
+  const dir = mkdtempSync(join(tmpdir(), "md-to-excalidraw check "));
+  try {
+    const script = join(dir, "index.mjs");
+    const input = join(dir, "in.md");
+    const output = join(dir, "out.excalidraw");
+    cpSync(join(HERE, "index.mjs"), script);
+    cpSync(join(HERE, "example.md"), input);
+
+    const result = spawnSync(
+      process.execPath,
+      [script, input, "--base-url", BASE, "-o", output],
+      { encoding: "utf8" },
+    );
+
+    assert.equal(result.status, 0, `CLI exited nonzero: ${result.stderr}`);
+    assert.match(
+      result.stderr,
+      /section frames/,
+      "CLI should report what it wrote, not silently no-op",
+    );
+    assert.ok(existsSync(output), "CLI silently produced no output file");
+    const scene = JSON.parse(readFile(output, "utf8"));
+    assert.ok(scene.elements.length > 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

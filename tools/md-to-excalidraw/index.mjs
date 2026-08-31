@@ -11,7 +11,8 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 // --- element defaults, mirrored from packages/common/src/constants.ts --------
 
@@ -603,6 +604,14 @@ const main = () => {
   );
 };
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// A plain `import.meta.url === file://${process.argv[1]}` comparison breaks
+// silently (exit 0, no output, main() never runs) whenever the script's path
+// contains characters a URL escapes -- a space becomes %20 in import.meta.url
+// but stays a literal space in argv[1]. realpathSync compares actual paths
+// instead and also collapses any symlink on either side.
+if (
+  process.argv[1] &&
+  realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])
+) {
   main();
 }
