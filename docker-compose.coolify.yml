@@ -1,0 +1,38 @@
+# Coolify deployment (single container, no collaboration server).
+#
+# Coolify: Project -> New Resource -> Docker Compose (or Public/Private Repository
+# with "Docker Compose" build pack), set the compose file path to
+# `docker-compose.coolify.yml`, then deploy.
+#
+# The VITE_APP_* values are baked into the JS bundle at build time, so changing
+# them requires a rebuild ("Deploy", not "Restart") in Coolify.
+
+services:
+  excalidraw:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
+        # Point these at your own services to avoid calling excalidraw.com.
+        # Leave them empty to keep the upstream public defaults.
+        VITE_APP_WS_SERVER_URL: ${VITE_APP_WS_SERVER_URL:-}
+        VITE_APP_BACKEND_V2_GET_URL: ${VITE_APP_BACKEND_V2_GET_URL:-}
+        VITE_APP_BACKEND_V2_POST_URL: ${VITE_APP_BACKEND_V2_POST_URL:-}
+        VITE_APP_FIREBASE_CONFIG: ${VITE_APP_FIREBASE_CONFIG:-}
+        VITE_APP_AI_BACKEND: ${VITE_APP_AI_BACKEND:-}
+        VITE_APP_LIBRARY_URL: ${VITE_APP_LIBRARY_URL:-}
+        VITE_APP_LIBRARY_BACKEND: ${VITE_APP_LIBRARY_BACKEND:-}
+    environment:
+      # Coolify generates the public domain for this service and terminates TLS
+      # in its own proxy; the container itself only ever serves plain HTTP on 80.
+      - SERVICE_FQDN_EXCALIDRAW_80
+    expose:
+      - "80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
