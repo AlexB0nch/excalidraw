@@ -28,8 +28,8 @@ services:
         VITE_APP_AI_BACKEND: ${VITE_APP_AI_BACKEND:-}
         VITE_APP_LIBRARY_URL: ${VITE_APP_LIBRARY_URL:-}
         VITE_APP_LIBRARY_BACKEND: ${VITE_APP_LIBRARY_BACKEND:-}
-    environment:
-      - SERVICE_FQDN_EXCALIDRAW_80
+    # Domain is assigned in Coolify's UI; see the note in docker-compose.coolify.yml
+    # for why there is no `environment:` block here.
     expose:
       - "80"
     restart: unless-stopped
@@ -44,11 +44,11 @@ services:
 
   excalidraw-room:
     image: excalidraw/excalidraw-room:latest
+    # Give the websocket server its own domain in Coolify (General -> Domains);
+    # that domain is what VITE_APP_WS_SERVER_URL has to point at.
+    # Mapping form, not a list -- see the note in docker-compose.coolify.yml.
     environment:
-      # Give the websocket server its own domain in Coolify; that domain is what
-      # VITE_APP_WS_SERVER_URL has to point at.
-      - SERVICE_FQDN_EXCALIDRAWROOM_80
-      - PORT=80
+      PORT: "80"
     expose:
       - "80"
     restart: unless-stopped
