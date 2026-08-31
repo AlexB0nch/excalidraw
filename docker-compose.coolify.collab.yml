@@ -28,15 +28,18 @@ services:
         VITE_APP_AI_BACKEND: ${VITE_APP_AI_BACKEND:-}
         VITE_APP_LIBRARY_URL: ${VITE_APP_LIBRARY_URL:-}
         VITE_APP_LIBRARY_BACKEND: ${VITE_APP_LIBRARY_BACKEND:-}
-    # Domain is assigned in Coolify's UI; see the note in docker-compose.coolify.yml
-    # for why there is no `environment:` block here.
+    # Domain is assigned in Coolify's UI. Mapping form, never a list -- see the note
+    # in docker-compose.coolify.yml. Setting both puts the site behind a login.
+    environment:
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-}
     expose:
       - "80"
     restart: unless-stopped
     depends_on:
       - excalidraw-room
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
