@@ -148,6 +148,95 @@ test("ids survive many keys without colliding", () => {
   assert.equal(new Set(ids).size, ids.length);
 });
 
+// Alex Shein design system: hairline flat shapes, one accent, no per-topic
+// color coding. Kept in sync by hand with the COLOR/FONT_HELVETICA constants
+// in index.mjs -- these tests assert the contract those constants exist to
+// enforce, so a future refactor that reintroduces a color palette or restores
+// Excalidraw's default rounding fails loudly instead of silently.
+const BRAND_STROKE_COLORS = new Set([
+  "#1F2328", // graphite
+  "#4B5157", // secondary text
+  "#8A8578", // stone
+  "#7A3B2E", // terracotta accent
+]);
+
+test("no roughness (flat, non-sketchy shapes)", () => {
+  const s = scene();
+  assert.ok(s.elements.length > 0);
+  for (const element of s.elements) {
+    assert.equal(element.roughness, 0, `${element.type} has roughness`);
+  }
+});
+
+test("no rounded corners anywhere", () => {
+  for (const element of scene().elements) {
+    assert.equal(element.roundness, null, `${element.type} has roundness`);
+  }
+});
+
+test("text uses the Helvetica fallback, not Excalifont", () => {
+  const textElements = scene().elements.filter((e) => e.type === "text");
+  assert.ok(textElements.length > 0);
+  for (const element of textElements) {
+    assert.equal(element.fontFamily, 1);
+  }
+});
+
+test("every stroke color is from the brand palette", () => {
+  for (const element of scene().elements) {
+    assert.ok(
+      BRAND_STROKE_COLORS.has(element.strokeColor),
+      `unexpected stroke color ${element.strokeColor} on a ${element.type}`,
+    );
+  }
+});
+
+test("no per-section color coding on cards, headings, or arrows", () => {
+  // Reproduce the failure this guards against: a document with more sections
+  // than the old 6-entry legacy palette had, so a coloring-by-index bug would
+  // show more than one distinct color within a single category.
+  //
+  // Element ids are sha256 digests (see makeId), not the descriptive keys
+  // used to derive them, so categories here are identified structurally
+  // instead: arrows by type, cards/back-buttons by having a link (only those
+  // two roles do), section body text by having a frameId that isn't the
+  // overview frame's.
+  const many = [`# T`, ...Array.from({ length: 9 }, (_, i) => `## Раздел ${i}`)];
+  const s = buildScene(parseMarkdown(many.join("\n\n")), { baseUrl: BASE });
+  const overviewFrameId = s.elements.find(
+    (e) => e.type === "frame" && e.name === "T",
+  ).id;
+  const distinctStrokes = (elements) =>
+    new Set(elements.map((e) => e.strokeColor)).size;
+
+  assert.equal(
+    distinctStrokes(s.elements.filter((e) => e.type === "arrow")),
+    1,
+    "arrows should all share one color",
+  );
+  assert.equal(
+    distinctStrokes(s.elements.filter((e) => e.link)),
+    1,
+    "every linked rectangle (cards and back-buttons) should share one color",
+  );
+  assert.ok(
+    distinctStrokes(
+      s.elements.filter(
+        (e) => e.type === "text" && e.frameId && e.frameId !== overviewFrameId,
+      ),
+    ) <= 2, // section heading/body text (graphite) + back-button label (secondary)
+    "section text should not vary by section index",
+  );
+});
+
+test("exactly one filled element in the whole scene (the terracotta accent)", () => {
+  const filled = scene().elements.filter(
+    (e) => e.backgroundColor !== "transparent",
+  );
+  assert.equal(filled.length, 1, "expected exactly one non-transparent fill");
+  assert.equal(filled[0].backgroundColor, "#7A3B2E");
+});
+
 test("CLI entry point runs when its own path contains a space", () => {
   // Regression test: `import.meta.url === \`file://${process.argv[1]}\`` used
   // to compare a URL-escaped string (spaces as %20) against a raw path (spaces

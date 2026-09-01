@@ -16,23 +16,26 @@ import { fileURLToPath } from "node:url";
 
 // --- element defaults, mirrored from packages/common/src/constants.ts --------
 
-const ROUNDNESS_ADAPTIVE = 3;
-const ROUNDNESS_PROPORTIONAL = 2;
-const FONT_EXCALIFONT = 5;
+/** Closest built-in Excalidraw font to the brand's Inter/Manrope pairing.
+ * Excalidraw ships 7 fixed font families and none of them are Inter or
+ * Manrope -- Helvetica is the plain-sans fallback, not a substitute for
+ * either. There is no separate bold variant to reach for headings either. */
+const FONT_HELVETICA = 1;
 
-/** Excalifont is proportional; this is a deliberately generous average so that
- * generated boxes never clip their label. Nothing re-measures text on import. */
+/** Alex Shein design system: hairline flat shapes, no per-topic color coding.
+ * https://github.com/AlexB0nch/excalidraw/pull/6 has the fuller writeup. */
+const COLOR = {
+  graphite: "#1F2328", // primary text, arrows, emphasis headings
+  secondaryText: "#4B5157", // captions: lead paragraph, "back to overview"
+  stone: "#8A8578", // hairline borders on every card and frame
+  terracotta: "#7A3B2E", // one accent per scene, never a fill
+};
+
+/** Helvetica is proportional; this is a deliberately generous average so that
+ * generated boxes never clip their label. Nothing re-measures text on import,
+ * and this ratio was tuned against Excalifont, not re-validated for Helvetica. */
 const CHAR_WIDTH_RATIO = 0.55;
 const LINE_HEIGHT = 1.25;
-
-const CARD_PALETTE = [
-  { bg: "#a5d8ff", stroke: "#1971c2" },
-  { bg: "#b2f2bb", stroke: "#2f9e44" },
-  { bg: "#ffec99", stroke: "#f08c00" },
-  { bg: "#ffc9c9", stroke: "#e03131" },
-  { bg: "#d0bfff", stroke: "#6741d9" },
-  { bg: "#99e9f2", stroke: "#0c8599" },
-];
 
 // --- layout ------------------------------------------------------------------
 
@@ -200,12 +203,12 @@ const base = (key, props) => ({
   width: 0,
   height: 0,
   angle: 0,
-  strokeColor: "#1e1e1e",
+  strokeColor: COLOR.graphite,
   backgroundColor: "transparent",
   fillStyle: "solid",
-  strokeWidth: 2,
+  strokeWidth: 1,
   strokeStyle: "solid",
-  roughness: 1,
+  roughness: 0,
   opacity: 100,
   groupIds: [],
   frameId: null,
@@ -233,8 +236,10 @@ const rect = (key, { x, y, width, height, frameId, bg, stroke, link }) =>
     height,
     frameId,
     backgroundColor: bg ?? "transparent",
-    strokeColor: stroke ?? "#1e1e1e",
-    roundness: { type: ROUNDNESS_ADAPTIVE },
+    strokeColor: stroke ?? COLOR.stone,
+    // Square corners: the design system is radius 0 throughout, unlike
+    // Excalidraw's own default adaptive rounding on rectangles.
+    roundness: null,
     link: link ?? null,
   });
 
@@ -250,11 +255,11 @@ const text = (
     width: textWidth(lines, fontSize),
     height: textHeight(lines, fontSize),
     frameId,
-    strokeColor: color ?? "#1e1e1e",
+    strokeColor: color ?? COLOR.graphite,
     text: value,
     originalText: value,
     fontSize,
-    fontFamily: FONT_EXCALIFONT,
+    fontFamily: FONT_HELVETICA,
     textAlign: align,
     verticalAlign: "top",
     containerId: null,
@@ -271,7 +276,7 @@ const arrow = (key, { x, y, dx, dy, frameId, color }) =>
     width: Math.abs(dx),
     height: Math.abs(dy),
     frameId,
-    strokeColor: color ?? "#868e96",
+    strokeColor: color ?? COLOR.graphite,
     points: [
       [0, 0],
       [dx, dy],
@@ -282,7 +287,7 @@ const arrow = (key, { x, y, dx, dy, frameId, color }) =>
     startArrowhead: null,
     endArrowhead: "arrow",
     elbowed: false,
-    roundness: { type: ROUNDNESS_PROPORTIONAL },
+    roundness: null,
   });
 
 // --- scene construction ------------------------------------------------------
@@ -368,7 +373,7 @@ export const buildScene = (doc, { baseUrl }) => {
         lines: leadLines,
         fontSize: L.leadFontSize,
         frameId: overviewId,
-        color: "#495057",
+        color: COLOR.secondaryText,
       }),
     );
     cursorY += textHeight(leadLines, L.leadFontSize) + 24;
@@ -387,8 +392,23 @@ export const buildScene = (doc, { baseUrl }) => {
       width: L.centerWidth,
       height: L.centerHeight,
       frameId: overviewId,
-      bg: "#e7f5ff",
-      stroke: "#1971c2",
+      stroke: COLOR.stone,
+    }),
+  );
+  // The one terracotta touch in the whole scene: a 3px accent strip on the
+  // hub card, filled rather than a hairline -- everything else stays stone
+  // or graphite. Which single element earns the accent is content-dependent
+  // (the brand spec picks a different node per document); the hub is the one
+  // structurally unambiguous choice a generic layout can make on its own.
+  elements.push(
+    rect("overview:centerAccent", {
+      x: centerX,
+      y: centerY,
+      width: L.centerWidth,
+      height: 3,
+      frameId: overviewId,
+      bg: COLOR.terracotta,
+      stroke: COLOR.terracotta,
     }),
   );
   const centerLines = wrap(doc.title, 24);
@@ -399,7 +419,6 @@ export const buildScene = (doc, { baseUrl }) => {
       lines: centerLines,
       fontSize: 22,
       frameId: overviewId,
-      color: "#1971c2",
     }),
   );
 
@@ -410,7 +429,6 @@ export const buildScene = (doc, { baseUrl }) => {
       ? L.padding
       : L.padding + L.cardWidth + L.columnGap + L.centerWidth + L.columnGap;
     const y = columnTop + row * (L.cardHeight + L.cardGapY);
-    const palette = CARD_PALETTE[i % CARD_PALETTE.length];
     const targetFrameId = makeId(`frame:section:${i}`);
 
     elements.push(
@@ -420,8 +438,6 @@ export const buildScene = (doc, { baseUrl }) => {
         width: L.cardWidth,
         height: L.cardHeight,
         frameId: overviewId,
-        bg: palette.bg,
-        stroke: palette.stroke,
         link: linkTo(targetFrameId),
       }),
     );
@@ -446,7 +462,6 @@ export const buildScene = (doc, { baseUrl }) => {
         dx: toX - fromX,
         dy: y + L.cardHeight / 2 - (centerY + L.centerHeight / 2),
         frameId: overviewId,
-        color: palette.stroke,
       }),
     );
   });
@@ -463,7 +478,6 @@ export const buildScene = (doc, { baseUrl }) => {
         .slice(0, row)
         .reduce((acc, h) => acc + h + L.frameGap, 0);
     const height = rowHeights[row];
-    const palette = CARD_PALETTE[i % CARD_PALETTE.length];
     const frameId = makeId(`frame:section:${i}`);
 
     elements.push(
@@ -484,7 +498,6 @@ export const buildScene = (doc, { baseUrl }) => {
         lines: headingLines,
         fontSize: L.headingFontSize,
         frameId,
-        color: palette.stroke,
       }),
     );
 
@@ -500,7 +513,6 @@ export const buildScene = (doc, { baseUrl }) => {
           lines: [line.text],
           fontSize,
           frameId,
-          color: line.kind === "subheading" ? palette.stroke : "#1e1e1e",
         }),
       );
       lineY += fontSize * 1.6;
@@ -513,8 +525,6 @@ export const buildScene = (doc, { baseUrl }) => {
         width: 240,
         height: 56,
         frameId,
-        bg: "#f1f3f5",
-        stroke: "#868e96",
         link: linkTo(overviewId),
       }),
     );
@@ -525,7 +535,7 @@ export const buildScene = (doc, { baseUrl }) => {
         lines: ["←  К обзору"],
         fontSize: 18,
         frameId,
-        color: "#495057",
+        color: COLOR.secondaryText,
       }),
     );
   });
